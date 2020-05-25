@@ -120,7 +120,10 @@
 
 #include <layerproto/LayerProtoParser.h>
 #include "SurfaceFlingerProperties.h"
+
+#ifdef QCOM_UM_FAMILY
 #include "gralloc_priv.h"
+#endif
 
 namespace android {
 
@@ -2770,6 +2773,7 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                             ALOGE_IF(status != NO_ERROR, "Unable to query format (%d)", status);
                             auto format = static_cast<ui::PixelFormat>(intFormat);
 
+#ifdef QCOM_UM_FAMILY
                             if (maxVirtualDisplaySize == 0 ||
                                 ((uint64_t)width <= maxVirtualDisplaySize &&
                                 (uint64_t)height <= maxVirtualDisplaySize)) {
@@ -2782,6 +2786,10 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                                      getHwComposer().allocateVirtualDisplay(width, height, &format);
                                 }
                             }
+#else
+                            displayId =
+                                    getHwComposer().allocateVirtualDisplay(width, height, &format);
+#endif
                         }
 
                         // TODO: Plumb requested format back up to consumer
@@ -3518,12 +3526,14 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
                 }
                 case Hwc2::IComposerClient::Composition::CLIENT: {
                     renderengine::LayerSettings layerSettings;
+#ifdef QCOM_UM_FAMILY
                     if (displayDevice->isVirtual() &&
                         skipColorLayer(layer->getTypeId())) {
                         // We are not using h/w composer.
                         // Skip color (dim) layer for WFD direct streaming.
                         continue;
                     }
+#endif
                     bool prepared =
                             layer->prepareClientLayer(renderArea, clip, clearRegion,
                                                       supportProtectedContent, layerSettings);
@@ -6221,6 +6231,7 @@ void SurfaceFlinger::setAllowedDisplayConfigsInternal(const sp<DisplayDevice>& d
     }
 }
 
+#ifdef QCOM_UM_FAMILY
 bool SurfaceFlinger::canAllocateHwcDisplayIdForVDS(uint64_t usage) {
     uint64_t flag_mask_pvt_wfd = ~0;
     uint64_t flag_mask_hw_video = ~0;
@@ -6238,6 +6249,11 @@ bool SurfaceFlinger::canAllocateHwcDisplayIdForVDS(uint64_t usage) {
     return (allowHwcForVDS || ((usage & flag_mask_pvt_wfd) &&
             (usage & flag_mask_hw_video)));
 }
+#else
+bool SurfaceFlinger::canAllocateHwcDisplayIdForVDS(uint64_t) {
+    return true;
+}
+#endif
 
 bool SurfaceFlinger::skipColorLayer(const char* layerType) {
     return (sDirectStreaming && !strncmp(layerType, "ColorLayer", strlen("ColorLayer")));
