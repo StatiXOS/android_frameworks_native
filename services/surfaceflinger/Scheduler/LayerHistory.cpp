@@ -22,6 +22,7 @@
 
 #include <android-base/stringprintf.h>
 #include <cutils/properties.h>
+#include <gui/WindowInfo.h>
 #include <utils/Log.h>
 #include <utils/Timers.h>
 #include <utils/Trace.h>
@@ -34,6 +35,8 @@
 #include "../Layer.h"
 #include "LayerInfo.h"
 #include "SchedulerUtils.h"
+
+using android::gui::WindowInfo;
 
 namespace android::scheduler {
 
@@ -153,7 +156,10 @@ LayerHistory::Summary LayerHistory::summarize(const RefreshRateConfigs& refreshR
 
         const auto vote = info->getRefreshRateVote(refreshRateConfigs, now);
         // Skip NoVote layer as those don't have any requirements
-        if (vote.type == LayerHistory::LayerVoteType::NoVote) {
+        // except keyboards so that it can be referenced later
+        const auto windowType = layer->getWindowType();
+        if (windowType != WindowInfo::Type::INPUT_METHOD &&
+            vote.type == LayerHistory::LayerVoteType::NoVote) {
             continue;
         }
 
@@ -166,7 +172,7 @@ LayerHistory::Summary LayerHistory::summarize(const RefreshRateConfigs& refreshR
         const float layerArea = transformed.getWidth() * transformed.getHeight();
         float weight = mDisplayArea ? layerArea / mDisplayArea : 0.0f;
         summary.push_back({info->getName(), info->getOwnerUid(), vote.type, vote.fps,
-                           vote.seamlessness, weight, layerFocused});
+                           vote.seamlessness, weight, layerFocused, windowType});
 
         if (CC_UNLIKELY(mTraceEnabled)) {
             trace(*info, vote.type, vote.fps.getIntValue());
